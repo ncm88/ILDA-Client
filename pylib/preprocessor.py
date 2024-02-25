@@ -1,148 +1,151 @@
 import struct
-from typing import List, Tuple 
-import numpy as np
-from math import asin
-
-def read_ilda_header(file):
-    # ILDA header format according to the provided structure
-    # Signature (4 bytes), Not used (3 bytes), Format type (1 byte), Name (8 bytes),
-    # Company name (8 bytes), Total number of entries (2 bytes), Current frame number (2 bytes),
-    # Total number of frames (2 bytes), Scanner head (1 byte), Not used (1 byte)
-    header_format = '>4s3xB8s8sHHHBB'
-    header_size = struct.calcsize(header_format)
-    header_data = file.read(header_size)
-
-    if len(header_data) < header_size:
-        return None  # End of file or incomplete header
-
-    header = struct.unpack(header_format, header_data)
-    signature, format_type, name_bytes, company_name_bytes, num_points, frame_number, total_frames, scanner_head = header[:8]
-
-    # Ensure the signature matches "ILDA"
-    if signature != b'ILDA':
-        raise ValueError("File does not start with ILDA signature")
-
-    # Decode and clean up the name and company name fields
-    name = name_bytes.decode('ascii', 'ignore').rstrip('\x00').strip()
-    company_name = company_name_bytes.decode('ascii', 'ignore').rstrip('\x00').strip()
-
-    return {
-        'signature': signature.decode('ascii'),
-        'format_type': format_type,
-        'name': name,
-        'company_name': company_name,
-        'num_points': num_points,
-        'frame_number': frame_number,
-        'total_frames': total_frames,
-        'scanner_head': scanner_head,
-    } 
+from typing import List, Tuple, Optional, Dict
+import os
 
 
-def extract_point_data(file, num_points, format_type):
-    points = []
+# Example usage:
+# ilda_handler = ILDA_Handler('path_to_your_ilda_file.ild')
+# header_info = ilda_handler.read_ilda_header()
+# if header_info:
+#     print(header_info)
+# point_data = ilda_handler.extract_point_data()
+# for point in point_data:
+#     print(point)
+# ilda_handler.create_binary()
 
-    # Define the point data format
-    # We ignore Z for 3D and color index for both 2D and 3D.
-    if format_type in [0, 1]:  # For both 3D (ignoring Z) and 2D coordinate sections
-        point_format = '>hhB'  # X, Y, status code
-    else:
-        raise ValueError("Unsupported format type for point data")
-
-    point_size = struct.calcsize(point_format)
-
-    for _ in range(num_points):
-        point_data = file.read(point_size)
-        if len(point_data) < point_size:
-            raise ValueError("Incomplete point data")
-
-        point = struct.unpack(point_format, point_data)
-        x, y, status_code = point
-        blanking = (status_code & 0x80) != 0  # Extract blanking bit, Value of 1 indicates
-        points.append((x, y, blanking))
-
-    return points
-
-
-def create_binary(pointData: List[Tuple[int, int, bool]])->None:
-
-    return
-
-
-
-
-
-
-
-
-
-
-
-fileIn = '../datafiles/ildatstb.ild'
-fin = open(fileIn, 'rb')
-
-header_info = read_ilda_header(fin)
-if header_info:
-    for key, value in header_info.items():
-        print(f"{key}: {value}")
-else:
-    print("Failed to read ILDA header or end of file reached.")
-
-out = extract_point_data(fin, header_info["num_points"], header_info["format_type"])
-for point in out:
-    print(point)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-"""
-
-def process_point_data(file, is_3d, num_points, output_file):
-    point_format_3d = '>hhhbB'
-    point_format_2d = '>hhbB'
-    point_size = struct.calcsize(point_format_3d if is_3d else point_format_2d)
+class ILDA_Handler:
     
-    for _ in range(num_points):
-        point_data = file.read(point_size)
-        if is_3d:
-            x, y, _, status_code, _ = struct.unpack(point_format_3d, point_data)
-        else:
-            x, y, status_code, _ = struct.unpack(point_format_2d, point_data)
+    def __init__(self, ilda_filename: str):
+        self.ilda_filename = ilda_filename
+        self.header_info: Optional[Dict[str, any]] = None
+        self.point_data: List[Tuple[int, int, bool]] = []
+
+
+    def read_ilda_header(self):
+        with open(self.ilda_filename, 'rb') as file:
+            header_format = '>4s3xB8s8sHHHBB'
+            header_size = struct.calcsize(header_format)
+            header_data = file.read(header_size)
+
+            if len(header_data) < header_size:
+                return None  # End of file or incomplete header
+
+            header = struct.unpack(header_format, header_data)
+            signature, format_type, name_bytes, company_name_bytes, num_points, frame_number, total_frames, scanner_head = header[:8]
+
+            if signature != b'ILDA':
+                raise ValueError("File does not start with ILDA signature")
+
+            name = name_bytes.decode('ascii', 'ignore').rstrip('\x00').strip()
+            company_name = company_name_bytes.decode('ascii', 'ignore').rstrip('\x00').strip()
+
+            self.header_info = {
+                'signature': signature.decode('ascii'),
+                'format_type': format_type,
+                'name': name,
+                'company_name': company_name,
+                'num_points': num_points,
+                'frame_number': frame_number,
+                'total_frames': total_frames,
+                'scanner_head': scanner_head,
+            }
+            return self.header_info
+
+
+    def extract_point_data(self):
+        if self.header_info is None:
+            raise ValueError("Header info is not yet read or file is invalid")
+
+        with open(self.ilda_filename, 'rb') as file:
+            # Skip the header
+            file.seek(struct.calcsize('>4s3xB8s8sHHHBB'))
+
+            points = []
+            format_type = self.header_info['format_type']
+            num_points = self.header_info['num_points']
+
+            if format_type in [0, 1]:
+                point_format = '>hhB'
+            else:
+                raise ValueError("Unsupported format type for point data")
+
+            point_size = struct.calcsize(point_format)
+
+            for _ in range(num_points):
+                point_data = file.read(point_size)
+                if len(point_data) < point_size:
+                    raise ValueError("Incomplete point data")
+
+                x, y, status_code = struct.unpack(point_format, point_data)
+                blanking = (status_code & 0x80) != 0
+                points.append((x, y, blanking))
+
+            self.point_data = points
+            return self.point_data
+
+
+    def create_binary(self, output_dir='../output'):
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
         
-        blank_bit = status_code & 0x01
-        output_file.write(struct.pack('>hhB', x, y, blank_bit))
-
-def process_ilda_file(input_file_path, output_file_path):
-    with open(input_file_path, 'rb') as ilda_file, open(output_file_path, 'wb') as output_file:
-        while True:
-            frame_header = read_frame_header(ilda_file)
-            if frame_header is None:
-                break  # End of file
-            
-            process_point_data(ilda_file, frame_header['is_3d'], frame_header['num_points'], output_file)
-
-if __name__ == "__main__":
-    input_file_path = 'input.ild'  # Update this to the path of your ILDA file
-    output_file_path = 'output.bin'  # The path where you want to save the new binary file
-    process_ilda_file(input_file_path, output_file_path)
-
-"""
+        with open(os.path.join(output_dir, 'ilda.bin'), 'wb') as file:
+            for x, y, blank in self.point_data:
+                x = self.to_16bit_signed(x)
+                y = self.to_16bit_signed(y)
+                blank_int = int(blank)
+                
+                data = struct.pack('<hhBxxx', x, y, blank_int)
+                file.write(data)
 
 
+    @staticmethod
+    def to_16bit_signed(value):
+        return value & 0xFFFF if value >= 0 else -(0x10000 - (value & 0xFFFF))
+
+
+
+
+
+'''
+def test():
+    def read_binary(filename: str) -> List[Tuple[int, int, bool]]:
+        points = []
+        # The format used for each point in the binary file
+        point_format = '<hhBxxx'  # Little endian, 2x 16-bit int, 1x 8-bit int, 3 bytes padding
+        point_size = struct.calcsize(point_format)
+
+        with open(filename, 'rb') as file:
+            while True:
+                data = file.read(point_size)
+                if not data:
+                    break  # End of file
+                
+                x, y, blank_int = struct.unpack(point_format, data)
+                blank = bool(blank_int)
+                points.append((x, y, blank))
+
+        return points
+    
+    fileIn = '../datafiles/ildatstb.ild'
+    handler = ILDA_Handler(fileIn)
+
+
+    header_info = handler.read_ilda_header()
+    if header_info:
+        for key, value in header_info.items():
+            print(f"{key}: {value}")
+    else:
+        print("Failed to read ILDA header or end of file reached.")
+
+    out = handler.extract_point_data()
+    handler.create_binary()
+    test = read_binary("../output/ilda.bin")
+    
+    ret = (out == test)
+
+    print(ret)
+    return ret
+
+
+test()
+'''
