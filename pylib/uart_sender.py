@@ -6,7 +6,7 @@ class UART_Sender:
     def __init__(self, uart_port: str, baud):
         self.uart_port = uart_port
         self.baud = baud
-        self.conn = None
+        self.serial_connection = None
 
     
     def open_connection(self):

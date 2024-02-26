@@ -2,6 +2,7 @@ build/
 output/
 venv/
 .python-version
+__pychache__/
 
 # Object files
 *.o

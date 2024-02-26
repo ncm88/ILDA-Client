@@ -19,6 +19,8 @@ class ILDA_Handler:
         self.ilda_filename = ilda_filename
         self.header_info: Optional[Dict[str, any]] = None
         self.point_data: List[Tuple[int, int, bool]] = []
+        self.read_ilda_header()
+        self.extract_point_data()
 
 
     def read_ilda_header(self):
@@ -97,7 +99,7 @@ class ILDA_Handler:
                 data = struct.pack('<hhBxxx', x, y, blank_int)
                 file.write(data)
 
-        return open(file_path, 'rb')
+        return file_path
 
 
     @staticmethod
@@ -107,6 +109,8 @@ class ILDA_Handler:
 
 
 '''
+THIS SHOULD BE MOVED INTO THE tests/ FOLDER
+
 def test():
     def read_binary(filePtr) -> List[Tuple[int, int, bool]]:
         points = []
@@ -114,7 +118,7 @@ def test():
         point_format = '<hhBxxx'  # Little endian, 2x 16-bit int, 1x 8-bit int, 3 bytes padding
         point_size = struct.calcsize(point_format)
 
-        with filePtr as file:
+        with open(filePtr, 'rb') as file:
             while True:
                 data = file.read(point_size)
                 if not data:
@@ -145,7 +149,6 @@ def test():
 
     print(ret)
     return ret
-
 
 test()
 '''
