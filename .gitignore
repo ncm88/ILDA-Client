@@ -1,5 +1,7 @@
 build/
 output/
+venv/
+.python-version
 
 # Object files
 *.o

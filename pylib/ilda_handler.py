@@ -87,15 +87,17 @@ class ILDA_Handler:
     def create_binary(self, output_dir='../output'):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        
-        with open(os.path.join(output_dir, 'ilda.bin'), 'wb') as file:
+        file_path = os.path.join(output_dir, 'ilda.bin')
+
+        with open(file_path, 'wb') as file:
             for x, y, blank in self.point_data:
                 x = self.to_16bit_signed(x)
                 y = self.to_16bit_signed(y)
                 blank_int = int(blank)
-                
                 data = struct.pack('<hhBxxx', x, y, blank_int)
                 file.write(data)
+
+        return open(file_path, 'rb')
 
 
     @staticmethod
@@ -104,17 +106,15 @@ class ILDA_Handler:
 
 
 
-
-
 '''
 def test():
-    def read_binary(filename: str) -> List[Tuple[int, int, bool]]:
+    def read_binary(filePtr) -> List[Tuple[int, int, bool]]:
         points = []
         # The format used for each point in the binary file
         point_format = '<hhBxxx'  # Little endian, 2x 16-bit int, 1x 8-bit int, 3 bytes padding
         point_size = struct.calcsize(point_format)
 
-        with open(filename, 'rb') as file:
+        with filePtr as file:
             while True:
                 data = file.read(point_size)
                 if not data:
@@ -138,8 +138,8 @@ def test():
         print("Failed to read ILDA header or end of file reached.")
 
     out = handler.extract_point_data()
-    handler.create_binary()
-    test = read_binary("../output/ilda.bin")
+    fout = handler.create_binary()
+    test = read_binary(fout)
     
     ret = (out == test)
 
