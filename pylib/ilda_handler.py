@@ -1,7 +1,7 @@
 import struct
 from typing import List, Tuple, Optional, Dict
 import os
-
+import math
 
 # Example usage:
 # ilda_handler = ILDA_Handler('path_to_your_ilda_file.ild')
@@ -21,6 +21,7 @@ class ILDA_Handler:
         self.point_data: List[Tuple[int, int, bool]] = []
         self.read_ilda_header()
         self.extract_point_data()
+
 
 
     def read_ilda_header(self):
@@ -52,6 +53,7 @@ class ILDA_Handler:
                 'scanner_head': scanner_head,
             }
             return self.header_info
+
 
 
     def extract_point_data(self):
@@ -86,29 +88,84 @@ class ILDA_Handler:
             return self.point_data
 
 
-    def create_binary(self, output_dir='../output'):
+
+    def create_binary(self, output_dir='../output', angular_resolution=360, maxAngleDeg = 10):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+        
         file_path = os.path.join(output_dir, 'ilda.bin')
-
+        
+        xMin, xMax = 0, 0
+        yMin, yMax = 0, 0
+        
+        #Angle calibration
+        opList = []
         with open(file_path, 'wb') as file:
             for x, y, blank in self.point_data:
+                
                 x = self.to_16bit_signed(x)
                 y = self.to_16bit_signed(y)
-                blank_int = int(blank)
-                data = struct.pack('<hhBxxx', x, y, blank_int)
-                file.write(data)
+                
+                if x > xMax:
+                    xMax = x
+
+                if x < xMin:
+                    xMin = x
+
+                if y > yMax:
+                    yMax = y
+
+                if y < yMin:
+                    yMin = y
+                
+                blank = int(blank)
+                opList.append((x, y, blank))
+
+
+        xTravel = xMax - xMin
+        yTravel = yMax - yMin
+
+
+        for op in opList:
+            
+            x = ((op[0] + abs(xMin)) / xTravel) * maxAngleDeg * angular_resolution / 360
+            y = ((op[1] + abs(yMin)) / yTravel) * maxAngleDeg * angular_resolution / 360
+            blank_int = op[2]
+
+            data = struct.pack('<hhBxxx', x, y, blank_int)
+            file.write(data)
 
         return file_path
 
 
+
+
+
     @staticmethod
-    def to_16bit_signed(value):
+    def translational_to_angular(value, resolution):
+        ret = 0
+        if value > 0:
+            ret = math.sin(value)
+        
+        
         return value & 0xFFFF if value >= 0 else -(0x10000 - (value & 0xFFFF))
 
 
 
+
+@staticmethod
+def to_16bit_signed(value):
+    return value & 0xFFFF if value >= 0 else -(0x10000 - (value & 0xFFFF))
+
+
+
+
+
+
+
+
 '''
+
 THIS SHOULD BE MOVED INTO THE tests/ FOLDER
 
 def test():
