@@ -11,7 +11,7 @@ class UART_Sender:
     
     def open_connection(self):
         try:
-            self.serial_connection = serial.Serial(self.uart_port, self.baud_rate, timeout=1)
+            self.serial_connection = serial.Serial(self.uart_port, self.baud, timeout=1)
             print(f"Opened {self.uart_port} at {self.baud_rate} baud.")
         except serial.SerialException as e:
             print(f"Failed to open serial port {self.uart_port}: {e}")

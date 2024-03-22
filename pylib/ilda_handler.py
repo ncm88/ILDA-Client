@@ -1,7 +1,7 @@
 import struct
 from typing import List, Tuple, Optional, Dict
 import os
-import math
+
 
 # Example usage:
 # ilda_handler = ILDA_Handler('path_to_your_ilda_file.ild')
@@ -89,7 +89,7 @@ class ILDA_Handler:
 
 
 
-    def create_binary(self, output_dir='../output', angular_resolution=360, maxAngleDeg = 10):
+    def create_binary(self, output_dir='../client_output', angular_resolution=360, maxAngleDeg=20):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         
@@ -108,65 +108,59 @@ class ILDA_Handler:
                 
                 if x > xMax:
                     xMax = x
-
                 if x < xMin:
                     xMin = x
-
                 if y > yMax:
                     yMax = y
-
                 if y < yMin:
                     yMin = y
                 
                 blank = int(blank)
                 opList.append((x, y, blank))
 
-
-        xTravel = xMax - xMin
-        yTravel = yMax - yMin
-
-
-        for op in opList:
-            
-            x = ((op[0] + abs(xMin)) / xTravel) * maxAngleDeg * angular_resolution / 360
-            y = ((op[1] + abs(yMin)) / yTravel) * maxAngleDeg * angular_resolution / 360
-            blank_int = op[2]
-
-            data = struct.pack('<hhBxxx', x, y, blank_int)
-            file.write(data)
-
-        return file_path
+            xTravel = xMax - xMin
+            yTravel = yMax - yMin
+            for op in opList:
+                x = int(((op[0] - xMin) / xTravel) * maxAngleDeg * angular_resolution / 360) & 0xFFFF
+                y = int(((op[1] - yMin) / yTravel) * maxAngleDeg * angular_resolution / 360) & 0xFFFF
 
 
+            opList = self.sort_points(opList)
+
+
+            for op in opList:
+                data = struct.pack('<hhBxxx', op[0], op[1], op[2]) #Padding added for alignment with STM32's 32-bit memory bus
+                file.write(data)
+
+            return file_path
 
 
 
     @staticmethod
-    def translational_to_angular(value, resolution):
-        ret = 0
-        if value > 0:
-            ret = math.sin(value)
-        
-        
+    def to_16bit_signed(value):
         return value & 0xFFFF if value >= 0 else -(0x10000 - (value & 0xFFFF))
 
 
 
-
-@staticmethod
-def to_16bit_signed(value):
-    return value & 0xFFFF if value >= 0 else -(0x10000 - (value & 0xFFFF))
-
-
+    
+    @staticmethod
+    def sort_points(points):
+        return points
 
 
 
 
 
 
-'''
 
-THIS SHOULD BE MOVED INTO THE tests/ FOLDER
+
+
+
+
+
+
+
+
 
 def test():
     def read_binary(filePtr) -> List[Tuple[int, int, bool]]:
@@ -182,6 +176,7 @@ def test():
                     break  # End of file
                 
                 x, y, blank_int = struct.unpack(point_format, data)
+                
                 blank = bool(blank_int)
                 points.append((x, y, blank))
 
@@ -204,8 +199,13 @@ def test():
     
     ret = (out == test)
 
-    print(ret)
+    for i in range(len(test)):
+        print(out[i], test[i])
+
     return ret
 
 test()
-'''
+
+
+#THIS SHOULD BE MOVED INTO THE tests/ FOLDER
+
