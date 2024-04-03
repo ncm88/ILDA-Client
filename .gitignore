@@ -1,6 +1,7 @@
 build/
 output/
 venv/
+.venv/
 .python-version
 __pychache__/
 

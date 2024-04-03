@@ -1,211 +1,133 @@
 import struct
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple
 import os
 
 
-# Example usage:
-# ilda_handler = ILDA_Handler('path_to_your_ilda_file.ild')
-# header_info = ilda_handler.read_ilda_header()
-# if header_info:
-#     print(header_info)
-# point_data = ilda_handler.extract_point_data()
-# for point in point_data:
-#     print(point)
-# ilda_handler.create_binary()
 
+
+#ASSUMPTIONS MADE: 
+#1) ILDA file has valid path
+#2) ILDA image is centered properly
 class ILDA_Handler:
     
-    def __init__(self, ilda_filename: str):
+    def __init__(self, ilda_filename: str, output_dir='client_output/', angular_resolution=48959, xMaxAngleDeg=10, yMaxAngleDeg=10): #denotes 10 degrees of travel in either direction (20 degree arc)
         self.ilda_filename = ilda_filename
-        self.header_info: Optional[Dict[str, any]] = None
-        self.point_data: List[Tuple[int, int, bool]] = []
-        self.read_ilda_header()
+        self.output_dir = output_dir
+        self.angular_resolution = angular_resolution
+        self.xMaxAngleDeg = xMaxAngleDeg
+        self.yMaxAngleDeg = yMaxAngleDeg
+
+        self.raw_point_data: List[Tuple[int, int, bool]] = []
+        self.formatted_point_data: List[Tuple[int, int, bool]] = []
+        self.path_data: List[Tuple[int, int, bool]] = []
+        
         self.extract_point_data()
-
-
-
-    def read_ilda_header(self):
-        with open(self.ilda_filename, 'rb') as file:
-            header_format = '>4s3xB8s8sHHHBB'
-            header_size = struct.calcsize(header_format)
-            header_data = file.read(header_size)
-
-            if len(header_data) < header_size:
-                return None  # End of file or incomplete header
-
-            header = struct.unpack(header_format, header_data)
-            signature, format_type, name_bytes, company_name_bytes, num_points, frame_number, total_frames, scanner_head = header[:8]
-
-            if signature != b'ILDA':
-                raise ValueError("File does not start with ILDA signature")
-
-            name = name_bytes.decode('ascii', 'ignore').rstrip('\x00').strip()
-            company_name = company_name_bytes.decode('ascii', 'ignore').rstrip('\x00').strip()
-
-            self.header_info = {
-                'signature': signature.decode('ascii'),
-                'format_type': format_type,
-                'name': name,
-                'company_name': company_name,
-                'num_points': num_points,
-                'frame_number': frame_number,
-                'total_frames': total_frames,
-                'scanner_head': scanner_head,
-            }
-            return self.header_info
-
+        self.format_point_data()
+        self.create_binary()
 
 
     def extract_point_data(self):
-        if self.header_info is None:
-            raise ValueError("Header info is not yet read or file is invalid")
 
+        points = []
         with open(self.ilda_filename, 'rb') as file:
-            # Skip the header
-            file.seek(struct.calcsize('>4s3xB8s8sHHHBB'))
+            while True:
+                # Attempt to read and unpack the header for the next frame
+                header_format = '>4s3xB8s8sHHHBB'
+                header_size = struct.calcsize(header_format)
+                header_data = file.read(header_size)
 
-            points = []
-            format_type = self.header_info['format_type']
-            num_points = self.header_info['num_points']
+                # Break if there is no header data, indicating end of file
+                if len(header_data) < header_size:
+                    break
 
-            if format_type in [0, 1]:
-                point_format = '>hhB'
-            else:
-                raise ValueError("Unsupported format type for point data")
+                header = struct.unpack(header_format, header_data)
+                signature, format_type, name_bytes, company_name_bytes, num_points, frame_number, total_frames, scanner_head = header[:8]
 
-            point_size = struct.calcsize(point_format)
+                # Verify ILDA file signature for each frame
+                if signature != b'ILDA':
+                    continue
 
-            for _ in range(num_points):
-                point_data = file.read(point_size)
-                if len(point_data) < point_size:
-                    raise ValueError("Incomplete point data")
+                # Check format type and set point format
+                if format_type in [0, 1]:  # Adjust based on supported format types
+                    point_format = '>hhB'
+                else:
+                    continue  # Skip unsupported format types
 
-                x, y, status_code = struct.unpack(point_format, point_data)
-                blanking = (status_code & 0x80) != 0
-                points.append((x, y, blanking))
+                point_size = struct.calcsize(point_format)
 
-            self.point_data = points
-            return self.point_data
+                for _ in range(num_points):
+                    point_data = file.read(point_size)
+                    if len(point_data) < point_size:
+                        raise ValueError("Incomplete point data")
+
+                    x, y, status_code = struct.unpack(point_format, point_data)
+                    blanking = (status_code & 0x80) != 0
+                    points.append((x, y, blanking))
+
+        self.raw_point_data = points
+        return self.raw_point_data
 
 
-
-    def create_binary(self, output_dir='../client_output', angular_resolution=360, maxAngleDeg=20):
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+    def format_point_data(self):
+        minX = 0
+        maxX = 1
+        minY = 0
+        maxY = 1
         
-        file_path = os.path.join(output_dir, 'ilda.bin')
+        formatted_points = []
+
+        for point in self.raw_point_data:
+            if point[0] < minX:
+                minX = point[0]
+            if point[1] < minY:
+                minY = point[1]
+            if point[0] > maxX:
+                maxX = point[0]
+            if point[1] > maxY:
+                maxY = point[1]
+
+        xTravel = maxX - minX
+        yTravel = maxY - minY
+        travelScale = max(xTravel, yTravel)    
+        xRatio = xTravel / travelScale
+        yRatio = yTravel / travelScale
+
+        xCompressionRatio = self.angular_resolution * ((2 * self.xMaxAngleDeg) / 360) / travelScale
+        yCompressionRatio = self.angular_resolution * ((2 * self.yMaxAngleDeg) / 360) / travelScale
+
+        for point in self.raw_point_data:
+            xCoord = xCompressionRatio * (point[0] - minX) - (self.angular_resolution * self.xMaxAngleDeg / 360) * xRatio
+            yCoord = yCompressionRatio * (point[1] - minY) - (self.angular_resolution * self.yMaxAngleDeg / 360) * yRatio
+            blank = point[2]
+            fPoint = (self.signed_to_abs(xCoord), self.signed_to_abs(yCoord), blank)
+            formatted_points.append(fPoint)
+
+        self.formatted_point_data = formatted_points
+        return self.format_point_data
+
+
+
+    def create_binary(self):
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
         
-        xMin, xMax = 0, 0
-        yMin, yMax = 0, 0
-        
-        #Angle calibration
-        opList = []
+        file_path = os.path.join(self.output_dir, 'target.bin')
+
         with open(file_path, 'wb') as file:
-            for x, y, blank in self.point_data:
-                
-                x = self.to_16bit_signed(x)
-                y = self.to_16bit_signed(y)
-                
-                if x > xMax:
-                    xMax = x
-                if x < xMin:
-                    xMin = x
-                if y > yMax:
-                    yMax = y
-                if y < yMin:
-                    yMin = y
-                
-                blank = int(blank)
-                opList.append((x, y, blank))
-
-            xTravel = xMax - xMin
-            yTravel = yMax - yMin
-            for op in opList:
-                x = int(((op[0] - xMin) / xTravel) * maxAngleDeg * angular_resolution / 360) & 0xFFFF
-                y = int(((op[1] - yMin) / yTravel) * maxAngleDeg * angular_resolution / 360) & 0xFFFF
-
-
-            opList = self.sort_points(opList)
-
-
-            for op in opList:
-                data = struct.pack('<hhBxxx', op[0], op[1], op[2]) #Padding added for alignment with STM32's 32-bit memory bus
+            for point in self.formatted_point_data:
+                data = struct.pack('<HHBxxx', self.to_16bit_unsigned(point[0]), self.to_16bit_unsigned(point[0]), point[2]) #Padding added for alignment with STM32's 32-bit memory bus, padding bytes implicitly set to 00000000
                 file.write(data)
-
+                print(self.to_16bit_unsigned(point[0]), self.to_16bit_unsigned(point[0]), point[2])
             return file_path
 
 
+    def signed_to_abs(self, angle):
+        if angle >= 0:
+            return angle
+        else:
+            return self.angular_resolution + angle
+        
 
     @staticmethod
-    def to_16bit_signed(value):
-        return value & 0xFFFF if value >= 0 else -(0x10000 - (value & 0xFFFF))
-
-
-
-    
-    @staticmethod
-    def sort_points(points):
-        return points
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def test():
-    def read_binary(filePtr) -> List[Tuple[int, int, bool]]:
-        points = []
-        # The format used for each point in the binary file
-        point_format = '<hhBxxx'  # Little endian, 2x 16-bit int, 1x 8-bit int, 3 bytes padding
-        point_size = struct.calcsize(point_format)
-
-        with open(filePtr, 'rb') as file:
-            while True:
-                data = file.read(point_size)
-                if not data:
-                    break  # End of file
-                
-                x, y, blank_int = struct.unpack(point_format, data)
-                
-                blank = bool(blank_int)
-                points.append((x, y, blank))
-
-        return points
-    
-    fileIn = '../datafiles/ildatstb.ild'
-    handler = ILDA_Handler(fileIn)
-
-
-    header_info = handler.read_ilda_header()
-    if header_info:
-        for key, value in header_info.items():
-            print(f"{key}: {value}")
-    else:
-        print("Failed to read ILDA header or end of file reached.")
-
-    out = handler.extract_point_data()
-    fout = handler.create_binary()
-    test = read_binary(fout)
-    
-    ret = (out == test)
-
-    for i in range(len(test)):
-        print(out[i], test[i])
-
-    return ret
-
-test()
-
-
-#THIS SHOULD BE MOVED INTO THE tests/ FOLDER
-
+    def to_16bit_unsigned(value):
+        return int(value) & 0xFFFF
