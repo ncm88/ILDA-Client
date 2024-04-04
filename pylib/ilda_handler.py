@@ -3,6 +3,17 @@ from typing import List, Tuple
 import os
 #import matplotlib.pyplot as plt
 
+class ILDA_Frame:
+    def __init__(self, signature, format_type, name_bytes, company_name_bytes, num_points, frame_number, total_frames, scanner_head):
+        self.signature = signature
+        self.format_type = format_type
+        self.name_bytes = name_bytes
+        self.company_name_bytes = company_name_bytes
+        self.num_points = num_points
+        self.frame_number = frame_number
+        self.total_frames = total_frames
+        self.scanner_head = scanner_head
+
 
 
 #ASSUMPTIONS MADE: 
@@ -19,8 +30,7 @@ class ILDA_Handler:
 
         self.raw_point_data: List[Tuple[int, int, bool]] = []
         self.formatted_point_data: List[Tuple[int, int, bool]] = []
-        self.path_data: List[Tuple[int, int, bool]] = []
-        
+
         self.extract_point_data()
         self.format_point_data()
         self.create_binary()
@@ -42,19 +52,30 @@ class ILDA_Handler:
 
                 header = struct.unpack(header_format, header_data)
                 signature, format_type, name_bytes, company_name_bytes, num_points, frame_number, total_frames, scanner_head = header[:8]
+                
+                frame = ILDA_Frame(signature, format_type, name_bytes, company_name_bytes, num_points, frame_number, total_frames, scanner_head)
 
                 # Verify ILDA file signature for each frame
-                if signature != b'ILDA':
+                if frame.signature != b'ILDA':
                     continue
 
-                # Check format type and set point format
-                if format_type in [0, 1]:  # Adjust based on supported format types
-                    point_format = '>hhB'
+                # Check for workable format types
+                if frame.format_type == 0:
+                    point_format = '>hhxxh'
+                
+                elif frame.format_type == 1:  # Adjust based on supported format types
+                    point_format = '>hhh'
+                
+                elif frame.format_type == 4:
+                    point_format = '>hhxxBxxx'
+
+                elif frame.format_type == 5:
+                    point_format = '>hhBxxx'
+                
                 else:
                     continue  # Skip unsupported format types
 
                 point_size = struct.calcsize(point_format)
-
                 for _ in range(num_points):
                     point_data = file.read(point_size)
                     if len(point_data) < point_size:
@@ -114,8 +135,8 @@ class ILDA_Handler:
         plt.grid(True)
         plt.show()
         '''
+        
         return self.formatted_point_data
-
 
 
 
@@ -127,7 +148,7 @@ class ILDA_Handler:
 
         with open(file_path, 'wb') as file:
             for point in self.formatted_point_data:
-                data = struct.pack('HHBxxx', int(point[0]) % 65536, int(point[1]) % 65536, point[2]) #Padding added for alignment with STM32's 32-bit memory bus, padding bytes implicitly set to 00000000
+                data = struct.pack('HHBxxx', int(point[0]) & 0xFFFF, int(point[1]) & 0xFFFF, point[2] ^ 0x1) #Padding added for alignment with STM32's 32-bit memory bus, padding bytes implicitly set to 00000000, convert blanking bit to laser_on bit
                 file.write(data)
             return file_path
 

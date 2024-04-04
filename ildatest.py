@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from pylib.ilda_handler import ILDA_Handler
 
 # Generate the binary file first
-handler = ILDA_Handler("datafiles/letters/0.ild")
+handler = ILDA_Handler("datafiles/cornelllogo.ild")
 
 # Path to the binary file
 file_path = 'client_output/target.bin'
@@ -33,7 +33,6 @@ if os.path.exists(file_path):
         for i in range(0, len(point_data), point_size):
             # Unpack the data for each point
             x, y, status = struct.unpack(point_format, point_data[i:i + point_size])
-            print(x, y, status)
 
             # Convert from absolute values to signed values, based on the handler's angular resolution
             x = abs_to_signed(x, handler.angular_resolution)
