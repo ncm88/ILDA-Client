@@ -1,19 +1,19 @@
 import struct
 from typing import List, Tuple
 import os
-
+#import matplotlib.pyplot as plt
 
 
 
 #ASSUMPTIONS MADE: 
 #1) ILDA file has valid path
-#2) ILDA image is centered properly
+#2) ILDA image is properly centered
 class ILDA_Handler:
     
     def __init__(self, ilda_filename: str, output_dir='client_output/', angular_resolution=48959, xMaxAngleDeg=10, yMaxAngleDeg=10): #denotes 10 degrees of travel in either direction (20 degree arc)
         self.ilda_filename = ilda_filename
         self.output_dir = output_dir
-        self.angular_resolution = angular_resolution
+        self.angular_resolution = angular_resolution 
         self.xMaxAngleDeg = xMaxAngleDeg
         self.yMaxAngleDeg = yMaxAngleDeg
 
@@ -68,42 +68,54 @@ class ILDA_Handler:
         return self.raw_point_data
 
 
+
     def format_point_data(self):
-        minX = 0
-        maxX = 1
-        minY = 0
-        maxY = 1
+        minX = min(point[0] for point in self.raw_point_data)
+        maxX = max(point[0] for point in self.raw_point_data)
+        minY = min(point[1] for point in self.raw_point_data)
+        maxY = max(point[1] for point in self.raw_point_data)
         
-        formatted_points = []
-
-        for point in self.raw_point_data:
-            if point[0] < minX:
-                minX = point[0]
-            if point[1] < minY:
-                minY = point[1]
-            if point[0] > maxX:
-                maxX = point[0]
-            if point[1] > maxY:
-                maxY = point[1]
-
         xTravel = maxX - minX
         yTravel = maxY - minY
-        travelScale = max(xTravel, yTravel)    
-        xRatio = xTravel / travelScale
-        yRatio = yTravel / travelScale
-
-        xCompressionRatio = self.angular_resolution * ((2 * self.xMaxAngleDeg) / 360) / travelScale
-        yCompressionRatio = self.angular_resolution * ((2 * self.yMaxAngleDeg) / 360) / travelScale
-
+        travelScale = max(xTravel, yTravel)
+        
+        formatted_points = []
+        
         for point in self.raw_point_data:
-            xCoord = xCompressionRatio * (point[0] - minX) - (self.angular_resolution * self.xMaxAngleDeg / 360) * xRatio
-            yCoord = yCompressionRatio * (point[1] - minY) - (self.angular_resolution * self.yMaxAngleDeg / 360) * yRatio
-            blank = point[2]
-            fPoint = (self.signed_to_abs(xCoord), self.signed_to_abs(yCoord), blank)
-            formatted_points.append(fPoint)
+            # Normalize points to the range [0, 1]
+            xNormalized = (point[0] - minX) / travelScale
+            yNormalized = (point[1] - minY) / travelScale
+            
+            # Scale points to the encoder resolution, taking into account the maximum angle
+            xCoord = xNormalized * self.angular_resolution * (self.xMaxAngleDeg / 180)
+            yCoord = yNormalized * self.angular_resolution * (self.yMaxAngleDeg / 180)
+            
+            # Center the points around the midpoint of the encoder's range
+            xCoord = xCoord - (self.angular_resolution * (self.xMaxAngleDeg / 180) / 2)
+            yCoord = yCoord - (self.angular_resolution * (self.yMaxAngleDeg / 180) / 2)
+
+            # Apply signed to absolute conversion if necessary
+            xCoord = self.signed_to_abs(xCoord)
+            yCoord = self.signed_to_abs(yCoord)
+
+            formatted_points.append((xCoord, yCoord, point[2]))
 
         self.formatted_point_data = formatted_points
-        return self.format_point_data
+        
+        '''
+        x_coords = [point[0] for point in self.formatted_point_data]
+        y_coords = [point[1] for point in self.formatted_point_data]
+        colors = ['green' if not point[2] else 'red' for point in self.formatted_point_data]  # Green for active, red for blanked
+        plt.figure(figsize=(10, 10))
+        plt.scatter(x_coords, y_coords, c=colors)
+        plt.title('Formatted ILDA Points')
+        plt.xlabel('X Coordinate')
+        plt.ylabel('Y Coordinate')
+        plt.grid(True)
+        plt.show()
+        '''
+        return self.formatted_point_data
+
 
 
 
@@ -115,10 +127,10 @@ class ILDA_Handler:
 
         with open(file_path, 'wb') as file:
             for point in self.formatted_point_data:
-                data = struct.pack('<HHBxxx', self.to_16bit_unsigned(point[0]), self.to_16bit_unsigned(point[0]), point[2]) #Padding added for alignment with STM32's 32-bit memory bus, padding bytes implicitly set to 00000000
+                data = struct.pack('HHBxxx', int(point[0]) % 65536, int(point[1]) % 65536, point[2]) #Padding added for alignment with STM32's 32-bit memory bus, padding bytes implicitly set to 00000000
                 file.write(data)
-                print(self.to_16bit_unsigned(point[0]), self.to_16bit_unsigned(point[0]), point[2])
             return file_path
+
 
 
     def signed_to_abs(self, angle):
@@ -127,6 +139,7 @@ class ILDA_Handler:
         else:
             return self.angular_resolution + angle
         
+
 
     @staticmethod
     def to_16bit_unsigned(value):
