@@ -10,7 +10,7 @@ class UART_Sender:
         self.baud = baud
         self.serial_connection = None
         self.handler = handler
-    
+
     def open_connection(self):
         try:
             self.serial_connection = serial.Serial(self.uart_port, self.baud, timeout=1)
@@ -19,14 +19,14 @@ class UART_Sender:
             print(f"Failed to open serial port {self.uart_port}: {e}")
             self.serial_connection = None
 
-    def stream_ilda(self, delay):
+    def stream_ilda(self, points_per_sec):
         while self.serial_connection and self.serial_connection.is_open and self.handler:
             ptDict = self.handler.point_dict
             for ptNum in ptDict.keys():
                 pt = ptDict[ptNum]
                 data = struct.pack('<HHBBH', int(pt[0]) & 0xFFFF, int(pt[1]) & 0xFFFF, pt[2] ^ 0x1, pt[3] & 0x1, ptNum & 0xFFFF)
                 self.serial_connection.write(data)
-                time.sleep(delay)
+                time.sleep(1/points_per_sec)
 
 
     def close_connection(self):

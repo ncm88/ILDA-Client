@@ -5,15 +5,7 @@ from pylib.ilda_handler import ILDA_Handler
 handler = ILDA_Handler("datafiles/letters/0.ild")
 sender = UART_Sender('/dev/tty.usbmodem1203', 115200, handler)
 sender.open_connection()
-sender.stream_ilda(10/1000)
-
-
-
-
-
-
-
-
+sender.stream_ilda(100)
 
 
 '''
