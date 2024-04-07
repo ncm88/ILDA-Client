@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from pylib.ilda_handler import ILDA_Handler
 
 # Generate the binary file first
-handler = ILDA_Handler("datafiles/cornelllogo.ild")
+handler = ILDA_Handler("datafiles/letters/0.ild")
 
 # Path to the binary file
 file_path = 'client_output/target.bin'
@@ -53,3 +53,5 @@ if os.path.exists(file_path):
     plt.show()
 else:
     print(f"File {file_path} does not exist.")
+
+print(handler.point_dict)

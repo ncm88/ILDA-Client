@@ -30,6 +30,7 @@ class ILDA_Handler:
 
         self.raw_point_data: List[Tuple[int, int, bool]] = []
         self.formatted_point_data: List[Tuple[int, int, bool]] = []
+        self.point_dict: dict[int, Tuple[int, int, bool, bool]] = {}
 
         self.extract_point_data()
         self.format_point_data()
@@ -147,11 +148,16 @@ class ILDA_Handler:
         file_path = os.path.join(self.output_dir, 'target.bin')
 
         with open(file_path, 'wb') as file:
+            pointNum = 0
             for point in self.formatted_point_data:
-                data = struct.pack('HHBxxx', int(point[0]) & 0xFFFF, int(point[1]) & 0xFFFF, point[2] ^ 0x1) #Padding added for alignment with STM32's 32-bit memory bus, padding bytes implicitly set to 00000000, convert blanking bit to laser_on bit
+                visited = 0
+                point = (int(point[0]) & 0xFFFF, int(point[1]) & 0xFFFF, point[2] ^ 0x1, visited)
+                data = struct.pack('<HHBBH', *point, pointNum) 
                 file.write(data)
+                self.point_dict[pointNum] = point
+                pointNum += 1
             return file_path
-
+        
 
 
     def signed_to_abs(self, angle):

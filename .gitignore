@@ -24,6 +24,7 @@ __pychache__/
 *.exe
 *.out
 *.app
+*.bin
 
 #Python
 *.pyc
