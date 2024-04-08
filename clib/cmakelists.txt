@@ -1,5 +1,39 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.5)
 project(clib)
 
+# Specify the C++ standard
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+# Find the packages for GLFW, OpenGL, and Python
+find_package(glfw3 REQUIRED)
+find_package(OpenGL REQUIRED)
+find_package(PythonLibs REQUIRED)
 
 
+# Find the libserialport library
+find_library(SERIALPORT_LIBRARY serialport)
+if(NOT SERIALPORT_LIBRARY)
+    message(FATAL_ERROR "libserialport not found")
+endif()
+
+# Specify the include directory for libserialport
+include_directories(/opt/homebrew/opt/libserialport/include)
+include_directories(/Users/nolan/projects/BART_3/ILDA-Client/.venv/lib/python3.12/site-packages/pybind11/include) #modify for your own pybind11 install location
+include_directories(${PYTHON_INCLUDE_DIRS})
+
+# Define executables
+add_executable(gui gui.cpp)
+add_library(uart_sender UART_Sender.cpp)
+
+# Link the uart_sender executable with the libserialport library
+target_link_libraries(uart_sender ${SERIALPORT_LIBRARY})
+
+# Link the gui executable with GLFW and OpenGL, and macOS-specific frameworks
+target_link_libraries(gui glfw ${OPENGL_gl_LIBRARY})
+if(APPLE)
+    target_link_libraries(gui "-framework Cocoa" "-framework IOKit" "-framework CoreFoundation")
+endif()
+
+# Include directories for OpenGL, if needed
+target_include_directories(gui PRIVATE ${OPENGL_INCLUDE_DIR})

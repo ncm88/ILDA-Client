@@ -83,8 +83,8 @@ class ILDA_Handler:
                         raise ValueError("Incomplete point data")
 
                     x, y, status_code = struct.unpack(point_format, point_data)
-                    blanking = (status_code & 0x80) != 0
-                    points.append((x, y, blanking))
+                    laser = (status_code & 0x80) == 0 #laser on if blanking bit set low
+                    points.append((x, y, laser))
 
         self.raw_point_data = points
         return self.raw_point_data

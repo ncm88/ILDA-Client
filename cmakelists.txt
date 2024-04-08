@@ -1,10 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 project(LISA)
 
-# Include the GUI subdirectory
-add_subdirectory(gui)
-
-
 add_subdirectory(clib)
 
 # Find the packages for GLFW and OpenGL
