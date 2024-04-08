@@ -1,7 +1,8 @@
 import struct
 from typing import List, Tuple
+import matplotlib.pyplot as plt
 import os
-#import matplotlib.pyplot as plt
+
 
 class ILDA_Frame:
     def __init__(self, signature, format_type, name_bytes, company_name_bytes, num_points, frame_number, total_frames, scanner_head):
@@ -15,30 +16,29 @@ class ILDA_Frame:
         self.scanner_head = scanner_head
 
 
-
 #ASSUMPTIONS MADE: 
 #1) ILDA file has valid path
 #2) ILDA image is properly centered
 class ILDA_Handler:
     
-    def __init__(self, ilda_filename: str, output_dir='client_output/', angular_resolution=48959, xMaxAngleDeg=10, yMaxAngleDeg=10): #denotes 10 degrees of travel in either direction (20 degree arc)
+    def __init__(self, ilda_filename: str, xMaxAngleDeg, yMaxAngleDeg, angular_resolution=48959, output_dir='client_output/'): #denotes 10 degrees of travel in either direction (20 degree arc)
         self.ilda_filename = ilda_filename
-        self.output_dir = output_dir
-        self.angular_resolution = angular_resolution 
         self.xMaxAngleDeg = xMaxAngleDeg
         self.yMaxAngleDeg = yMaxAngleDeg
+        self.angular_resolution = angular_resolution 
 
         self.raw_point_data: List[Tuple[int, int, bool]] = []
         self.formatted_point_data: List[Tuple[int, int, bool]] = []
         self.point_dict: dict[int, Tuple[int, int, bool, bool]] = {}
 
+        self.output_dir = output_dir
+
         self.extract_point_data()
         self.format_point_data()
-        self.create_binary()
+        self.create_point_dict()
 
 
     def extract_point_data(self):
-
         points = []
         with open(self.ilda_filename, 'rb') as file:
             while True:
@@ -124,9 +124,8 @@ class ILDA_Handler:
 
         self.formatted_point_data = formatted_points
         
-        '''
-        x_coords = [point[0] for point in self.formatted_point_data]
-        y_coords = [point[1] for point in self.formatted_point_data]
+        x_coords = [self.abs_to_signed(point[0]) for point in self.formatted_point_data]
+        y_coords = [self.abs_to_signed(point[1]) for point in self.formatted_point_data]
         colors = ['green' if not point[2] else 'red' for point in self.formatted_point_data]  # Green for active, red for blanked
         plt.figure(figsize=(10, 10))
         plt.scatter(x_coords, y_coords, c=colors)
@@ -135,13 +134,12 @@ class ILDA_Handler:
         plt.ylabel('Y Coordinate')
         plt.grid(True)
         plt.show()
-        '''
         
         return self.formatted_point_data
 
 
 
-    def create_binary(self):
+    def create_point_dict(self):
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
         
@@ -159,13 +157,17 @@ class ILDA_Handler:
             return file_path
         
 
-
     def signed_to_abs(self, angle):
         if angle >= 0:
             return angle
         else:
             return self.angular_resolution + angle
         
+    def abs_to_signed(self, angle):
+        if angle > self.angular_resolution//2:
+            return angle - self.angular_resolution
+        else:
+            return angle
 
 
     @staticmethod

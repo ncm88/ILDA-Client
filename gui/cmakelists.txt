@@ -1,0 +1,19 @@
+cmake_minimum_required(VERSION 3.0)
+project(gui)
+
+# Find the packages for GLFW and OpenGL
+find_package(glfw3 REQUIRED)
+find_package(OpenGL REQUIRED)
+
+# Define the source files and executable
+add_executable(gui gui.cpp)
+
+# Include directories for GLFW and OpenGL
+# If you encounter include issues, you may need to adjust this
+target_include_directories(gui PRIVATE ${OPENGL_INCLUDE_DIR})
+
+# Link against GLFW, OpenGL, and additional required frameworks on macOS
+target_link_libraries(gui glfw ${OPENGL_gl_LIBRARY})
+if(APPLE)
+    target_link_libraries(gui "-framework Cocoa" "-framework IOKit" "-framework CoreFoundation")
+endif()

@@ -30,4 +30,5 @@ __pychache__/
 *.pyc
 
 
-client_output
+client_output/
+build/

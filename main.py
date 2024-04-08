@@ -11,12 +11,13 @@ def main():
     parser.add_argument('port', type=str, help='Specify UART port')
     parser.add_argument('baud', type=int, help='Specify baud rate')
     parser.add_argument('points_per_second', type=int, help='Specify points per second')
+    parser.add_argument('travel', type=int, help='Specify travel')
 
     # Parse the arguments
     args = parser.parse_args()
 
     # Create instances and perform operations based on the provided arguments
-    handler = ILDA_Handler(args.ildaPath)
+    handler = ILDA_Handler(args.ildaPath, args.travel, args.travel)
     sender = UART_Sender(args.port, args.baud, handler)
     sender.open_connection()
     sender.stream_ilda(args.points_per_second)
