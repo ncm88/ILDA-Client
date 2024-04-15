@@ -1,9 +1,0 @@
-cmake_minimum_required(VERSION 3.0)
-project(LISA)
-
-add_subdirectory(clib)
-
-# Find the packages for GLFW and OpenGL
-find_package(glfw3 REQUIRED)
-find_package(OpenGL REQUIRED)
-

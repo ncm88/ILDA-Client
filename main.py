@@ -11,7 +11,7 @@ def main():
     parser.add_argument('port', type=str, help='Specify UART port')
     parser.add_argument('baud', type=int, help='Specify baud rate')
     parser.add_argument('points_per_second', type=int, help='Specify points per second')
-    parser.add_argument('travel', type=int, help='Specify travel')
+    parser.add_argument('travel', type=float, help='Specify travel')
 
     # Parse the arguments
     args = parser.parse_args()

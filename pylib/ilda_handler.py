@@ -1,7 +1,7 @@
 import struct
 from typing import List, Tuple
-import matplotlib.pyplot as plt
 import os
+#import matplotlib.pyplot as plt
 
 
 class ILDA_Frame:
@@ -123,7 +123,7 @@ class ILDA_Handler:
             formatted_points.append((xCoord, yCoord, point[2]))
 
         self.formatted_point_data = formatted_points
-        
+        '''
         x_coords = [self.abs_to_signed(point[0]) for point in self.formatted_point_data]
         y_coords = [self.abs_to_signed(point[1]) for point in self.formatted_point_data]
         colors = ['green' if not point[2] else 'red' for point in self.formatted_point_data]  # Green for active, red for blanked
@@ -134,6 +134,9 @@ class ILDA_Handler:
         plt.ylabel('Y Coordinate')
         plt.grid(True)
         plt.show()
+        
+        '''
+        
         
         return self.formatted_point_data
 
